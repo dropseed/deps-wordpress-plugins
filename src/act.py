@@ -1,6 +1,7 @@
 import os
 import json
 from subprocess import run
+import tempfile
 
 
 def act():
@@ -34,14 +35,14 @@ def act():
         # TODO have pullrequest do this too?
         run(['git', 'push', '--set-upstream', 'origin', branch_name], check=True)
 
-    # Shell out to `pullrequest` to make the actual pull request.
-    #    It will automatically use the existing env variables and JSON schema
-    #    to submit a pull request, or simulate one a test mode.
+    fp = tempfile.NamedTemporaryFile(delete=False)
+    fp.write(json.dumps(data).encode('utf-8'))
+    fp.close()
     run(
         [
             'pullrequest',
             '--branch', branch_name,
-            '--dependencies-json', json.dumps(data),
+            '--dependencies-json', fp.name,
         ],
         check=True
     )
