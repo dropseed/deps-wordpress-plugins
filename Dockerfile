@@ -11,7 +11,7 @@ RUN adduser -D -u 9000 app && \
     mkdir /usr/src/app && \
     chown -R app:app /usr/src/app
 
-RUN pip install requests
+RUN pip install requests semantic_version
 
 # add the pullrequest utility to easily create pull requests on different git hosts
 WORKDIR /usr/src/app

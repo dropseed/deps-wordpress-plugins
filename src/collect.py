@@ -5,6 +5,7 @@ import sys
 import logging
 
 import requests
+import semantic_version
 
 
 def collect():
@@ -46,9 +47,19 @@ def collect():
             logging.error(f'Unable to find available versions of {plugin} in API.')
             available = [installed_version]
 
+        # filter out anything below what is installed
+        filtered = []
+        for a in available:
+            try:
+                if semantic_version.Version(a, partial=True) > semantic_version.Version(installed_version, partial=True):
+                    filtered.append(a)
+            except ValueError:
+                # one of them is not a valid semver, it needs to be included as an option
+                filtered.append(a)
+
         collected_plugins[plugin] = {
             'constraint': installed_version,
-            'available': [{'name': x} for x in available],
+            'available': [{'name': x} for x in filtered],
             'source': 'wordpress-plugin',
         }
 
