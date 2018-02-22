@@ -1,7 +1,8 @@
 import os
 import json
 from subprocess import run
-import tempfile
+
+from utils import write_json_to_temp_file
 
 
 def act():
@@ -11,10 +12,7 @@ def act():
     with open('/dependencies/input_data.json', 'r') as f:
         data = json.load(f)
 
-    # TODO `pullrequest start` could do this, take care of safe branch names, naming consistency, etc.
-    branch_name = 'deps/update-job-{}'.format(os.getenv('JOB_ID'))
-    run(['git', 'checkout', os.getenv('GIT_SHA')], check=True)
-    run(['git', 'checkout', '-b', branch_name], check=True)
+    run(['deps', 'branch'], check=True)
 
     for manifest_path, manifest_data in data.get('manifests', {}).items():
         for dependency_name, updated_dependency_data in manifest_data['updated']['dependencies'].items():
@@ -28,21 +26,6 @@ def act():
             run(['unzip', f'{dependency_name}.zip', '-d', os.path.dirname(plugin_dir_path)], check=True)
             run(['rm', f'{dependency_name}.zip'], check=True)
 
-            run(['git', 'add', plugin_dir_path], check=True)
-            run(['git', 'commit', '-m', 'Update {} from {} to {}'.format(dependency_name, installed, version_to_update_to)], check=True)
+            run(['deps', 'commit', '-m', 'Update {} from {} to {}'.format(dependency_name, installed, version_to_update_to), plugin_dir_path], check=True)
 
-    if os.getenv('DEPENDENCIES_ENV') != 'test':
-        # TODO have pullrequest do this too?
-        run(['git', 'push', '--set-upstream', 'origin', branch_name], check=True)
-
-    fp = tempfile.NamedTemporaryFile(delete=False)
-    fp.write(json.dumps(data).encode('utf-8'))
-    fp.close()
-    run(
-        [
-            'pullrequest',
-            '--branch', branch_name,
-            '--dependencies-json', fp.name,
-        ],
-        check=True
-    )
+    run(['deps', 'pullrequest', write_json_to_temp_file(data)], check=True)

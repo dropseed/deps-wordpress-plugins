@@ -1,11 +1,13 @@
 import re
 import os
-import json
 import sys
 import logging
+from subprocess import run
 
 import requests
 import semantic_version
+
+from utils import write_json_to_temp_file
 
 
 def collect():
@@ -64,13 +66,13 @@ def collect():
             'source': 'wordpress-plugin',
         }
 
-    schema_output = json.dumps({
+    schema_output = {
         'manifests': {
-            os.path.relpath(os.path.abspath(plugins_path), '/repo'): {
+            plugins_path: {
                 'current': {
                     'dependencies': collected_plugins
                 }
             }
         }
-    })
-    print(f'<Dependencies>{schema_output}</Dependencies>')
+    }
+    run(['deps', 'collect', write_json_to_temp_file(schema_output)], check=True)

@@ -7,5 +7,5 @@ cases:
   output_data_path: tests/actor/basic/expected_output_data.json
   tests:
     - |
-        git checkout deps/update-job-0 && \
+        git checkout deps/update-0 && \
         diff -r -x '.git' ${CWD}/tests/actor/basic/repo_final/ ./
