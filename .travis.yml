@@ -6,6 +6,6 @@ language: python
 python: 3.6
 cache: pip
 
-install: pip install dependencies-cli==2.0.0
+install: pip install dependencies-cli==2.2.2
 
 script: dependencies test
