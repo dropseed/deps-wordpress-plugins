@@ -10,6 +10,9 @@ import semantic_version
 from utils import write_json_to_temp_file
 
 
+INCLUDE_TRUNK = os.getenv('SETTING_INCLUDE_TRUNK', 'false') == 'true'
+
+
 def collect():
     plugins_path = sys.argv[1]
     plugins_contents = os.listdir(plugins_path)
@@ -53,6 +56,9 @@ def collect():
         # filter out anything below what is installed
         filtered = []
         for a in available:
+            if a == 'trunk' and not INCLUDE_TRUNK:
+                continue
+
             try:
                 if semantic_version.Version.coerce(a) > semantic_version.Version.coerce(installed_version):
                     filtered.append(a)
