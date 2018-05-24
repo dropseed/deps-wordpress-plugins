@@ -18,6 +18,8 @@ def collect():
     plugins_contents = os.listdir(plugins_path)
     plugin_directories = [x for x in plugins_contents if os.path.isdir(os.path.join(plugins_path, x))]
 
+    run(['deps', 'hook', 'before_update'], check=True)
+
     collected_plugins = {}
 
     for plugin in plugin_directories:
