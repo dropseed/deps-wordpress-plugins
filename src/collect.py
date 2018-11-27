@@ -62,7 +62,7 @@ def collect():
                 continue
 
             try:
-                if semantic_version.Version.coerce(a) > semantic_version.Version.coerce(installed_version):
+                if semantic_version.Version(a) > semantic_version.Version(installed_version):
                     filtered.append(a)
             except ValueError:
                 # one of them is not a valid semver, it needs to be included as an option
