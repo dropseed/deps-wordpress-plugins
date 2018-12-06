@@ -12,4 +12,4 @@ install:
 
 script:
 - dependencies test --loose-output-data-comparison
-- ./bin/deps dev test --loose-output-data-comparison
+- ./bin/deps dev test --verbose --loose-output-data-comparison
