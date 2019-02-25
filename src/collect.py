@@ -49,13 +49,13 @@ def collect():
 
         try:
             response = requests.get(f'https://api.wordpress.org/plugins/info/1.0/{plugin}.json')
-            available = response.json().get('versions', {}).keys()
+            available = list(response.json().get('versions', {}).keys())
             version = response.json()['version']
             if version not in available:
                 available.append(version)
             print(available)
-        except Exception:
-            logging.error(f'Unable to find available versions of {plugin} in API.')
+        except Exception as e:
+            logging.error(f'Unable to find available versions of {plugin} in API.', e)
             available = [installed_version]
 
         # filter out anything below what is installed
