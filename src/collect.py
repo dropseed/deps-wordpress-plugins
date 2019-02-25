@@ -54,8 +54,8 @@ def collect():
             if version not in available:
                 available.append(version)
             print(available)
-        except Exception as e:
-            logging.error(f'Unable to find available versions of {plugin} in API.', e)
+        except Exception:
+            logging.error(f'Unable to find available versions of {plugin} in API.')
             available = [installed_version]
 
         # filter out anything below what is installed
