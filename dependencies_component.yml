@@ -1,0 +1,2 @@
+collect: python3 $DEPS_COMPONENT_PATH/src/collect.py
+act: python3 $DEPS_COMPONENT_PATH/src/act.py

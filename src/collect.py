@@ -2,25 +2,19 @@ import re
 import os
 import sys
 import logging
+import json
 from subprocess import run
 
 import requests
-import semantic_version
-
-from utils import write_json_to_temp_file
 
 
-INCLUDE_TRUNK = os.getenv('SETTING_INCLUDE_TRUNK', 'false') == 'true'
-
-
-def collect():
-    plugins_path = sys.argv[1]
+def collect(input_path, output_path):
+    plugins_path = input_path
     plugins_contents = os.listdir(plugins_path)
     plugin_directories = [x for x in plugins_contents if os.path.isdir(os.path.join(plugins_path, x))]
 
-    run(['deps', 'hook', 'before_update'], check=True)
-
-    collected_plugins = {}
+    current_plugins = {}
+    updated_plugins = {}
 
     for plugin in plugin_directories:
 
@@ -49,38 +43,39 @@ def collect():
 
         try:
             response = requests.get(f'https://api.wordpress.org/plugins/info/1.0/{plugin}.json')
-            available = list(response.json().get('versions', {}).keys())
-            print(available)
+            response.raise_for_status()
+            latest = response.json()["version"]
         except Exception:
-            logging.error(f'Unable to find available versions of {plugin} in API.')
-            available = [installed_version]
+            logging.error(f'Unable to find latest version of {plugin} in API.')
+            latest = None
 
-        # filter out anything below what is installed
-        filtered = []
-        for a in available:
-            if a == 'trunk' and not INCLUDE_TRUNK:
-                continue
-
-            try:
-                if semantic_version.Version(a) > semantic_version.Version(installed_version):
-                    filtered.append(a)
-            except ValueError:
-                # one of them is not a valid semver, it needs to be included as an option
-                filtered.append(a)
-
-        collected_plugins[plugin] = {
+        current_plugins[plugin] = {
             'constraint': installed_version,
-            'available': [{'name': x} for x in filtered],
             'source': 'wordpress-plugin',
         }
 
-    schema_output = {
+        if latest and latest != installed_version:
+            updated_plugins[plugin] = {
+                'constraint': latest,
+                'source': 'wordpress-plugin',
+            }
+
+    output = {
         'manifests': {
             plugins_path: {
                 'current': {
-                    'dependencies': collected_plugins
-                }
+                    'dependencies': current_plugins,
+                },
+                'updated': {
+                    'dependencies': updated_plugins,
+                },
             }
         }
     }
-    run(['deps', 'collect', write_json_to_temp_file(schema_output)], check=True)
+
+    with open(output_path, "w+") as f:
+        json.dump(output, f)
+
+
+if __name__ == "__main__":
+    collect(sys.argv[1], sys.argv[2])
