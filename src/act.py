@@ -2,6 +2,7 @@ import os
 import json
 import sys
 from subprocess import run
+import zipfile
 
 
 def act(input_path, output_path):
@@ -19,7 +20,9 @@ def act(input_path, output_path):
 
             run(['rm', '-r', plugin_dir_path], check=True)
             run(f'curl https://downloads.wordpress.org/plugin/{dependency_name}.{version_to_update_to}.zip > {dependency_name}.zip', shell=True, check=True)
-            run(['unzip', f'{dependency_name}.zip', '-d', os.path.dirname(plugin_dir_path)], check=True)
+            z = zipfile.ZipFile(f'{dependency_name}.zip', 'r')
+            z.extractall(os.path.dirname(plugin_dir_path))
+            z.close()
             run(['rm', f'{dependency_name}.zip'], check=True)
 
     with open(output_path, "w+") as f:
