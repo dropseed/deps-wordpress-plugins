@@ -1,15 +1,8 @@
-sudo: required
-services:
-  - docker
-
 language: python
 python: 3.6
-cache: pip
 
 install:
-- pip install dependencies-cli==2.2.4
-- curl https://www.dependencies.io/install.sh | bash -s 2.5.0-beta.1
+- curl https://www.dependencies.io/install.sh | bash
 
 script:
-- dependencies test --loose-output-data-comparison
-- ./bin/deps dev test --verbose --loose-output-data-comparison
+- ./bin/deps dev test --verbose --loose
