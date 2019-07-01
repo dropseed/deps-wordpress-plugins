@@ -1,2 +1,3 @@
-collect: python3 $DEPS_COMPONENT_PATH/src/collect.py
-act: python3 $DEPS_COMPONENT_PATH/src/act.py
+install: pip install pipenv && PIPENV_IGNORE_VIRTUALENVS=1 PIPENV_VENV_IN_PROJECT=1 pipenv sync
+collect: $DEPS_COMPONENT_PATH/.venv/bin/python $DEPS_COMPONENT_PATH/src/collect.py
+act: $DEPS_COMPONENT_PATH/.venv/bin/python $DEPS_COMPONENT_PATH/src/act.py
