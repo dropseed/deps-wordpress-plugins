@@ -2,7 +2,12 @@ language: python
 python: 3.6
 
 install:
-- curl https://www.dependencies.io/install.sh | bash
+- curl https://www.dependencies.io/install.sh | bash -s -- -b $HOME/bin
 
-script:
-- ./bin/deps dev test --verbose --loose
+jobs:
+  include:
+  - name: test
+    script: deps dev test --verbose --loose
+  - name: deps
+    if: (branch = master AND type = cron) OR (branch =~ ^deps.+$ AND type = push)
+    script: deps ci -v
