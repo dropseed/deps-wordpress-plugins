@@ -9,5 +9,5 @@ jobs:
   - name: test
     script: deps dev test --verbose --loose
   - name: deps
-    if: (branch = master AND type = cron) OR (branch =~ ^deps.+$ AND type = push)
+    if: branch = master AND type = cron
     script: deps ci
