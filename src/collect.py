@@ -37,7 +37,8 @@ def collect(input_path, output_path):
                     break
 
         if not installed_version:
-            raise Exception(f'Could not detect installed version of {plugin}')
+            print(f'Could not detect installed version of {plugin}')
+            continue
 
         installed_version = installed_version.decode('utf-8').strip()
 
