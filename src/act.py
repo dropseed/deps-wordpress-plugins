@@ -1,8 +1,10 @@
 import os
 import json
 import sys
-from subprocess import run
+import subprocess
 import zipfile
+
+from collect import get_plugin_version
 
 
 def act(input_path, output_path):
@@ -18,12 +20,20 @@ def act(input_path, output_path):
 
             plugin_dir_path = os.path.join(manifest_path, dependency_name)
 
-            run(['rm', '-r', plugin_dir_path], check=True)
-            run(f'curl https://downloads.wordpress.org/plugin/{dependency_name}.{version_to_update_to}.zip > {dependency_name}.zip', shell=True, check=True)
+            subprocess.run(['rm', '-r', plugin_dir_path], check=True)
+            try:
+                subprocess.run(f'curl --fail https://downloads.wordpress.org/plugin/{dependency_name}.{version_to_update_to}.zip -o {dependency_name}.zip', shell=True, check=True)
+            except subprocess.CalledProcessError:
+                subprocess.run(f'curl --fail https://downloads.wordpress.org/plugin/{dependency_name}.zip -o {dependency_name}.zip', shell=True, check=True)
+
             z = zipfile.ZipFile(f'{dependency_name}.zip', 'r')
             z.extractall(os.path.dirname(plugin_dir_path))
             z.close()
-            run(['rm', f'{dependency_name}.zip'], check=True)
+            subprocess.run(['rm', f'{dependency_name}.zip'], check=True)
+
+            version_installed = get_plugin_version(plugin_dir_path)
+            if version_installed != version_to_update_to:
+                raise Exception(f"Installed version doesn't match what was expected: {version_installed} != {version_to_update_to}")
 
     with open(output_path, "w+") as f:
         json.dump(data, f)

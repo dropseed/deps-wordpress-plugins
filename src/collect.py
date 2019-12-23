@@ -8,6 +8,24 @@ from subprocess import run
 import requests
 
 
+def get_plugin_version(plugin_path):
+    # look in all root php files for the "Version: x" to detect installed version
+    plugin_root_files = os.listdir(plugin_path)
+    plugin_root_paths = [os.path.join(plugin_path, x) for x in plugin_root_files]
+    plugin_root_file_paths = [x for x in plugin_root_paths if not os.path.isdir(x) and x[-4:] == '.php']
+
+    installed_version = None
+    for path in plugin_root_file_paths:
+        with open(path, 'rb') as f:
+            contents = f.read()
+            version_match = re.search(b'^\s*\**\s*Version:\s*(.*)\s*$', contents, re.MULTILINE)
+            if version_match:
+                installed_version = version_match.groups(0)[0].decode('utf-8').strip()
+                break
+
+    return installed_version
+
+
 def collect(input_path, output_path):
     plugins_path = input_path
     plugins_contents = os.listdir(plugins_path)
@@ -21,25 +39,10 @@ def collect(input_path, output_path):
         print(f'Collecting {plugin}')
 
         plugin_path = os.path.join(plugins_path, plugin)
-
-        # look in all root php files for the "Version: x" to detect installed version
-        plugin_root_files = os.listdir(plugin_path)
-        plugin_root_paths = [os.path.join(plugin_path, x) for x in plugin_root_files]
-        plugin_root_file_paths = [x for x in plugin_root_paths if not os.path.isdir(x) and x[-4:] == '.php']
-
-        installed_version = None
-        for path in plugin_root_file_paths:
-            with open(path, 'rb') as f:
-                contents = f.read()
-                version_match = re.search(b'^\s*\**\s*Version:\s*(.*)\s*$', contents, re.MULTILINE)
-                if version_match:
-                    installed_version = version_match.groups(0)[0]
-                    break
+        installed_version = get_plugin_version(plugin_path)
 
         if not installed_version:
             raise Exception(f'Could not detect installed version of {plugin}')
-
-        installed_version = installed_version.decode('utf-8').strip()
 
         try:
             response = requests.get(f'https://api.wordpress.org/plugins/info/1.0/{plugin}.json')
