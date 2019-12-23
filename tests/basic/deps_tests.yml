@@ -1,0 +1,7 @@
+tests:
+- name: basic
+  repo: repo
+  diff: repo_final
+  data: dependencies.json
+  user_config:
+    path: plugins

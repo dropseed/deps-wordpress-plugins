@@ -42,7 +42,8 @@ def collect(input_path, output_path):
         installed_version = get_plugin_version(plugin_path)
 
         if not installed_version:
-            raise Exception(f'Could not detect installed version of {plugin}')
+            print(f'Could not detect installed version of {plugin}')
+            continue
 
         try:
             response = requests.get(f'https://api.wordpress.org/plugins/info/1.0/{plugin}.json')

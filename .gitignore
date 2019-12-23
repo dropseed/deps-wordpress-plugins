@@ -1,3 +1,4 @@
 # dependencies-cli test cache
 .pytest_cache
 __pycache__
+/.venv
