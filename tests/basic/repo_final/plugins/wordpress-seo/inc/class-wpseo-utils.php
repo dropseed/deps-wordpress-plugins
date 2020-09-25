@@ -22,15 +22,6 @@ class WPSEO_Utils {
 	public static $has_filters;
 
 	/**
-	 * Notifications to be shown in the JavaScript console.
-	 *
-	 * @since 3.3.2
-	 *
-	 * @var array
-	 */
-	protected static $console_notifications = array();
-
-	/**
 	 * Check whether the current user is allowed to access the configuration.
 	 *
 	 * @since 1.8.0
@@ -113,49 +104,6 @@ class WPSEO_Utils {
 	}
 
 	/**
-	 * Register a notification to be shown in the JavaScript console.
-	 *
-	 * @since 3.3.2
-	 *
-	 * @param string $identifier    Notification identifier.
-	 * @param string $message       Message to be shown.
-	 * @param bool   $one_time_only Only show once (if added multiple times).
-	 */
-	public static function javascript_console_notification( $identifier, $message, $one_time_only = false ) {
-		static $registered_hook;
-
-		if ( is_null( $registered_hook ) ) {
-			add_action( 'admin_footer', array( __CLASS__, 'localize_console_notices' ), 999 );
-			$registered_hook = true;
-		}
-
-		$prefix = 'Yoast SEO: ';
-		if ( substr( $message, 0, strlen( $prefix ) ) !== $prefix ) {
-			$message = $prefix . $message;
-		}
-
-		if ( $one_time_only ) {
-			self::$console_notifications[ $identifier ] = $message;
-		}
-		else {
-			self::$console_notifications[] = $message;
-		}
-	}
-
-	/**
-	 * Localize the console notifications to JavaScript.
-	 *
-	 * @since 3.3.2
-	 */
-	public static function localize_console_notices() {
-		if ( empty( self::$console_notifications ) ) {
-			return;
-		}
-
-		wp_localize_script( WPSEO_Admin_Asset_Manager::PREFIX . 'admin-global-script', 'wpseoConsoleNotifications', array_values( self::$console_notifications ) );
-	}
-
-	/**
 	 * Check whether a url is relative.
 	 *
 	 * @since 1.8.0
@@ -165,7 +113,7 @@ class WPSEO_Utils {
 	 * @return bool
 	 */
 	public static function is_url_relative( $url ) {
-		return ( strpos( $url, 'http' ) !== 0 && strpos( $url, '//' ) !== 0 );
+		return YoastSEO()->helpers->url->is_relative( $url );
 	}
 
 	/**
@@ -199,7 +147,7 @@ class WPSEO_Utils {
 	 * @return string
 	 */
 	public static function standardize_whitespace( $string ) {
-		return trim( str_replace( '  ', ' ', str_replace( array( "\t", "\n", "\r", "\f" ), ' ', $string ) ) );
+		return trim( str_replace( '  ', ' ', str_replace( [ "\t", "\n", "\r", "\f" ], ' ', $string ) ) );
 	}
 
 	/**
@@ -231,7 +179,7 @@ class WPSEO_Utils {
 			$value = trim( $value );
 		}
 		elseif ( is_array( $value ) ) {
-			$value = array_map( array( __CLASS__, 'trim_recursive' ), $value );
+			$value = array_map( [ __CLASS__, 'trim_recursive' ], $value );
 		}
 
 		return $value;
@@ -308,15 +256,12 @@ class WPSEO_Utils {
 		 * @param string $filtered The sanitized string.
 		 * @param string $str      The string prior to being sanitized.
 		 */
-
 		return apply_filters( 'sanitize_text_field', $filtered, $value );
 	}
 
 	/**
 	 * Sanitize a url for saving to the database.
 	 * Not to be confused with the old native WP function.
-	 *
-	 * @todo [JRF => whomever] Check/improve url verification.
 	 *
 	 * @since 1.8.0
 	 *
@@ -325,8 +270,82 @@ class WPSEO_Utils {
 	 *
 	 * @return string
 	 */
-	public static function sanitize_url( $value, $allowed_protocols = array( 'http', 'https' ) ) {
-		return esc_url_raw( sanitize_text_field( rawurldecode( $value ) ), $allowed_protocols );
+	public static function sanitize_url( $value, $allowed_protocols = [ 'http', 'https' ] ) {
+
+		$url   = '';
+		$parts = wp_parse_url( $value );
+
+		if ( isset( $parts['scheme'], $parts['host'] ) ) {
+			$url = $parts['scheme'] . '://';
+
+			if ( isset( $parts['user'] ) ) {
+				$url .= rawurlencode( $parts['user'] );
+				$url .= isset( $parts['pass'] ) ? ':' . rawurlencode( $parts['pass'] ) : '';
+				$url .= '@';
+			}
+
+			$parts['host'] = preg_replace(
+				'`[^a-z0-9-.:\[\]\\x80-\\xff]`',
+				'',
+				strtolower( $parts['host'] )
+			);
+
+			$url .= $parts['host'] . ( isset( $parts['port'] ) ? ':' . intval( $parts['port'] ) : '' );
+		}
+
+		if ( isset( $parts['path'] ) && strpos( $parts['path'], '/' ) === 0 ) {
+			$path = explode( '/', wp_strip_all_tags( $parts['path'] ) );
+			$path = self::sanitize_encoded_text_field( $path );
+			$url .= implode( '/', $path );
+		}
+
+		if ( ! $url ) {
+			return '';
+		}
+
+		if ( isset( $parts['query'] ) ) {
+			wp_parse_str( $parts['query'], $parsed_query );
+
+			$parsed_query = array_combine(
+				self::sanitize_encoded_text_field( array_keys( $parsed_query ) ),
+				self::sanitize_encoded_text_field( array_values( $parsed_query ) )
+			);
+
+			$url = add_query_arg( $parsed_query, $url );
+		}
+
+		if ( isset( $parts['fragment'] ) ) {
+			$url .= '#' . self::sanitize_encoded_text_field( $parts['fragment'] );
+		}
+
+		if ( strpos( $url, '%' ) !== false ) {
+			$url = preg_replace_callback(
+				'`%[a-fA-F0-9]{2}`',
+				function( $octects ) {
+					return strtolower( $octects[0] );
+				},
+				$url
+			);
+		}
+
+		return esc_url_raw( $url, $allowed_protocols );
+	}
+
+	/**
+	 * Decode, sanitize and encode the array of strings or the string.
+	 *
+	 * @since 13.3
+	 *
+	 * @param array|string $value The value to sanitize and encode.
+	 *
+	 * @return array|string The sanitized value.
+	 */
+	public static function sanitize_encoded_text_field( $value ) {
+		if ( is_array( $value ) ) {
+			return array_map( [ __CLASS__, 'sanitize_encoded_text_field' ], $value );
+		}
+
+		return rawurlencode( sanitize_text_field( rawurldecode( $value ) ) );
 	}
 
 	/**
@@ -361,7 +380,7 @@ class WPSEO_Utils {
 	 * @return bool
 	 */
 	public static function emulate_filter_bool( $value ) {
-		$true  = array(
+		$true  = [
 			'1',
 			'true',
 			'True',
@@ -374,8 +393,8 @@ class WPSEO_Utils {
 			'on',
 			'On',
 			'ON',
-		);
-		$false = array(
+		];
+		$false = [
 			'0',
 			'false',
 			'False',
@@ -388,7 +407,7 @@ class WPSEO_Utils {
 			'off',
 			'Off',
 			'OFF',
-		);
+		];
 
 		if ( is_bool( $value ) ) {
 			return $value;
@@ -618,7 +637,7 @@ class WPSEO_Utils {
 					$result = bccomp( $number1, $number2, $precision ); // Returns int 0, 1 or -1.
 				}
 				else {
-					$result = ( $number1 == $number2 ) ? 0 : ( ( $number1 > $number2 ) ? 1 : - 1 );
+					$result = ( $number1 == $number2 ) ? 0 : ( ( $number1 > $number2 ) ? 1 : -1 );
 				}
 				break;
 		}
@@ -652,7 +671,7 @@ class WPSEO_Utils {
 	 * @return string
 	 */
 	public static function trim_nbsp_from_string( $string ) {
-		$find   = array( '&nbsp;', chr( 0xC2 ) . chr( 0xA0 ) );
+		$find   = [ '&nbsp;', chr( 0xC2 ) . chr( 0xA0 ) ];
 		$string = str_replace( $find, ' ', $string );
 		$string = trim( $string );
 
@@ -669,16 +688,13 @@ class WPSEO_Utils {
 	 * @return bool
 	 */
 	public static function is_valid_datetime( $datetime ) {
+		static $date_helper;
 
-		if ( substr( $datetime, 0, 1 ) === '-' ) {
-			return false;
+		if ( ! $date_helper ) {
+			$date_helper = new WPSEO_Date_Helper();
 		}
 
-		try {
-			return new DateTime( $datetime ) !== false;
-		} catch ( Exception $exc ) {
-			return false;
-		}
+		return $date_helper->is_valid_datetime( $datetime );
 	}
 
 	/**
@@ -740,7 +756,7 @@ class WPSEO_Utils {
 	 * @return string
 	 */
 	public static function get_site_name() {
-		return wp_strip_all_tags( get_bloginfo( 'name' ), true );
+		return YoastSEO()->helpers->site->get_site_name();
 	}
 
 	/**
@@ -779,14 +795,7 @@ class WPSEO_Utils {
 	 * @return bool
 	 */
 	public static function is_yoast_seo_page() {
-		static $is_yoast_seo;
-
-		if ( $is_yoast_seo === null ) {
-			$current_page = filter_input( INPUT_GET, 'page' );
-			$is_yoast_seo = ( substr( $current_page, 0, 6 ) === 'wpseo_' );
-		}
-
-		return $is_yoast_seo;
+		return YoastSEO()->helpers->current_page->is_yoast_seo_page();
 	}
 
 	/**
@@ -799,7 +808,7 @@ class WPSEO_Utils {
 	 * @return bool
 	 */
 	public static function is_yoast_seo_free_page( $current_page ) {
-		$yoast_seo_free_pages = array(
+		$yoast_seo_free_pages = [
 			'wpseo_dashboard',
 			'wpseo_titles',
 			'wpseo_social',
@@ -807,8 +816,7 @@ class WPSEO_Utils {
 			'wpseo_tools',
 			'wpseo_search_console',
 			'wpseo_licenses',
-			'wpseo_courses',
-		);
+		];
 
 		return in_array( $current_page, $yoast_seo_free_pages, true );
 	}
@@ -834,10 +842,13 @@ class WPSEO_Utils {
 	public static function is_development_mode() {
 		$development_mode = false;
 
-		if ( defined( 'WPSEO_DEBUG' ) ) {
+		if ( defined( 'YOAST_ENVIRONMENT' ) && YOAST_ENVIRONMENT === 'development' ) {
+			$development_mode = true;
+		}
+		elseif ( defined( 'WPSEO_DEBUG' ) ) {
 			$development_mode = WPSEO_DEBUG;
 		}
-		elseif ( site_url() && false === strpos( site_url(), '.' ) ) {
+		elseif ( site_url() && strpos( site_url(), '.' ) === false ) {
 			$development_mode = true;
 		}
 
@@ -862,28 +873,7 @@ class WPSEO_Utils {
 	 * @return string Home URL with optional path, appropriately slashed if not.
 	 */
 	public static function home_url( $path = '', $scheme = null ) {
-
-		$home_url = home_url( $path, $scheme );
-
-		if ( ! empty( $path ) ) {
-			return $home_url;
-		}
-
-		$home_path = wp_parse_url( $home_url, PHP_URL_PATH );
-
-		if ( '/' === $home_path ) { // Home at site root, already slashed.
-			return $home_url;
-		}
-
-		if ( is_null( $home_path ) ) { // Home at site root, always slash.
-			return trailingslashit( $home_url );
-		}
-
-		if ( is_string( $home_path ) ) { // Home in subdirectory, slash if permalink structure has slash.
-			return user_trailingslashit( $home_url );
-		}
-
-		return $home_url;
+		return YoastSEO()->helpers->url->home( $path, $scheme );
 	}
 
 	/**
@@ -911,7 +901,7 @@ class WPSEO_Utils {
 	 * @return string
 	 */
 	public static function traffic_light_svg() {
-		return <<<SVG
+		return <<<'SVG'
 <svg class="yst-traffic-light init" version="1.1" xmlns="http://www.w3.org/2000/svg"
 	 role="img" aria-hidden="true" focusable="false"
 	 x="0px" y="0px" viewBox="0 0 30 47" enable-background="new 0 0 30 47" xml:space="preserve">
@@ -1003,7 +993,7 @@ SVG;
 	 * @return bool Whether or not the metabox should be displayed.
 	 */
 	protected static function display_taxonomy_metabox( $taxonomy = null ) {
-		if ( ! isset( $taxonomy ) || ! in_array( $taxonomy, get_taxonomies( array( 'public' => true ), 'names' ), true ) ) {
+		if ( ! isset( $taxonomy ) || ! in_array( $taxonomy, get_taxonomies( [ 'public' => true ], 'names' ), true ) ) {
 			return false;
 		}
 
@@ -1066,14 +1056,72 @@ SVG;
 	}
 
 	/**
+	 * Gets the type of the current post.
+	 *
+	 * @return string The post type, or an empty string.
+	 */
+	public static function get_post_type() {
+		global $post;
+
+		if ( isset( $post->post_type ) ) {
+			return $post->post_type;
+		}
+		elseif ( isset( $_GET['post_type'] ) ) {
+			return sanitize_text_field( $_GET['post_type'] );
+		}
+
+		return '';
+	}
+
+	/**
+	 * Gets the type of the current page.
+	 *
+	 * @return string Returns 'post' if the current page is a post edit page. Taxonomy in other cases.
+	 */
+	public static function get_page_type() {
+		global $pagenow;
+		if ( WPSEO_Metabox::is_post_edit( $pagenow ) ) {
+			return 'post';
+		}
+
+		return 'taxonomy';
+	}
+
+	/**
 	 * Getter for the Adminl10n array. Applies the wpseo_admin_l10n filter.
 	 *
 	 * @return array The Adminl10n array.
 	 */
 	public static function get_admin_l10n() {
-		$wpseo_admin_l10n = array();
+		$post_type = self::get_post_type();
+		$page_type = self::get_page_type();
 
-		$additional_entries = apply_filters( 'wpseo_admin_l10n', array() );
+		$label_object = false;
+		$no_index     = false;
+
+		if ( $page_type === 'post' ) {
+			$label_object = get_post_type_object( $post_type );
+			$no_index     = WPSEO_Options::get( 'noindex-' . $post_type, false );
+		}
+		else {
+			$label_object = WPSEO_Taxonomy::get_labels();
+
+			$taxonomy_slug = filter_input( INPUT_GET, 'taxonomy', FILTER_DEFAULT, [ 'options' => [ 'default' => '' ] ] );
+			$no_index      = WPSEO_Options::get( 'noindex-tax-' . $taxonomy_slug, false );
+		}
+
+		$wpseo_admin_l10n = [
+			'displayAdvancedTab'   => WPSEO_Capability_Utils::current_user_can( 'wpseo_edit_advanced_metadata' ) || ! WPSEO_Options::get( 'disableadvanced_meta' ),
+			'noIndex'              => (bool) $no_index,
+			'isPostType'           => (bool) get_post_type(),
+			'postType'             => get_post_type(),
+			'postTypeNamePlural'   => ( $page_type === 'post' ) ? $label_object->label : $label_object->name,
+			'postTypeNameSingular' => ( $page_type === 'post' ) ? $label_object->labels->singular_name : $label_object->singular_name,
+			'breadcrumbsDisabled'  => WPSEO_Options::get( 'breadcrumbs-enable', false ) !== true && ! current_theme_supports( 'yoast-seo-breadcrumbs' ),
+			'privateBlog'          => ( (string) get_option( 'blog_public' ) ) === '0',
+		];
+
+		$additional_entries = apply_filters( 'wpseo_admin_l10n', [] );
 		if ( is_array( $additional_entries ) ) {
 			$wpseo_admin_l10n = array_merge( $wpseo_admin_l10n, $additional_entries );
 		}
@@ -1100,44 +1148,37 @@ SVG;
 	}
 
 	/**
-	 * Returns the home url with the following modifications:
+	 * Returns the unfiltered home URL.
 	 *
+	 * In case WPML is installed, returns the original home_url and not the WPML version.
 	 * In case of a multisite setup we return the network_home_url.
-	 * In case of no multisite setup we return the home_url while overriding the WPML filter.
-	 *
-	 * @codeCoverageIgnore
 	 *
 	 * @return string The home url.
 	 */
-	public static function get_home_url() {
-		// Add a new filter to undo WPML's changing of home url.
-		add_filter( 'wpml_get_home_url', array( 'WPSEO_Utils', 'wpml_get_home_url' ), 10, 2 );
-
-		$url = home_url();
-
-		// If the plugin is network activated, use the network home URL.
-		if ( self::is_plugin_network_active() ) {
-			$url = network_home_url();
-		}
-
-		remove_filter( 'wpml_get_home_url', array( 'WPSEO_Utils', 'wpml_get_home_url' ), 10 );
-
-		return $url;
-	}
 
 	/**
-	 * Returns the original URL instead of the language-enriched URL.
-	 * This method gets automatically triggered by the wpml_get_home_url filter.
+	 * Returns the unfiltered home URL.
+	 *
+	 * In case WPML is installed, returns the original home_url and not the WPML version.
+	 * In case of a multisite setup we return the network_home_url.
+	 *
+	 * @return string The home url.
 	 *
 	 * @codeCoverageIgnore
-	 *
-	 * @param string $home_url The url altered by WPML. Unused.
-	 * @param string $url      The url that isn't altered by WPML.
-	 *
-	 * @return string The original url.
 	 */
-	public static function wpml_get_home_url( $home_url, $url ) {
-		return $url;
+	public static function get_home_url() {
+
+		/**
+		 * Action: 'wpseo_home_url' - Allows overriding of the home URL.
+		 */
+		do_action( 'wpseo_home_url' );
+
+		// If the plugin is network-activated, use the network home URL.
+		if ( self::is_plugin_network_active() ) {
+			return network_home_url();
+		}
+
+		return home_url();
 	}
 
 	/**
@@ -1159,11 +1200,8 @@ SVG;
 	 * @return false|string The prepared JSON string.
 	 */
 	public static function format_json_encode( $data ) {
-		$flags = 0;
-		if ( version_compare( PHP_VERSION, '5.4', '>=' ) ) {
-			// @codingStandardsIgnoreLine This is used in the wp_json_encode call, which checks for this.
-			$flags = ( $flags | JSON_UNESCAPED_SLASHES );
-		}
+		$flags = JSON_UNESCAPED_SLASHES;
+
 		if ( self::is_development_mode() ) {
 			$flags = ( $flags | JSON_PRETTY_PRINT );
 
@@ -1191,6 +1229,7 @@ SVG;
 			return false;
 		}
 
+		// phpcs:ignore WordPress.Security.EscapeOutput -- Escaping happens in WPSEO_Utils::schema_tag, which should be whitelisted.
 		echo self::schema_tag( $graph, $class );
 		return true;
 	}
@@ -1208,52 +1247,161 @@ SVG;
 			return false;
 		}
 
-		$output = array(
+		$output = [
 			'@context' => 'https://schema.org',
 			'@graph'   => $graph,
-		);
+		];
 		return "<script type='application/ld+json' class='" . esc_attr( $class ) . "'>" . self::format_json_encode( $output ) . '</script>' . "\n";
 	}
 
-	/* ********************* DEPRECATED METHODS ********************* */
-
 	/**
-	 * Returns the language part of a given locale, defaults to english when the $locale is empty.
+	 * Extends the allowed post tags with accessibility-related attributes.
 	 *
-	 * @see WPSEO_Language_Utils::get_language()
-	 *
-	 * @deprecated 9.5
+	 * @param array $allowed_post_tags The allowed post tags.
 	 * @codeCoverageIgnore
 	 *
-	 * @param string $locale The locale to get the language of.
-	 *
-	 * @return string The language part of the locale.
+	 * @return array The allowed tags including post tags, input tags and select tags.
 	 */
-	public static function get_language( $locale ) {
-		_deprecated_function( __METHOD__, 'WPSEO 9.5', 'WPSEO_Language_Utils::get_language' );
-		return WPSEO_Language_Utils::get_language( $locale );
+	public static function extend_kses_post_with_a11y( $allowed_post_tags ) {
+		static $a11y_tags;
+
+		if ( isset( $a11y_tags ) === false ) {
+			$a11y_tags = [
+				'button'   => [
+					'aria-expanded' => true,
+					'aria-controls' => true,
+				],
+				'div'      => [
+					'tabindex' => true,
+				],
+				// Below are attributes that are needed for backwards compatibility (WP < 5.1).
+				'span'     => [
+					'aria-hidden' => true,
+				],
+				'input'    => [
+					'aria-describedby' => true,
+				],
+				'select'   => [
+					'aria-describedby' => true,
+				],
+				'textarea' => [
+					'aria-describedby' => true,
+				],
+			];
+
+			// Add the global allowed attributes to each html element.
+			$a11y_tags = array_map( '_wp_add_global_attributes', $a11y_tags );
+		}
+
+		return array_merge_recursive( $allowed_post_tags, $a11y_tags );
 	}
 
 	/**
-	 * Returns the user locale for the language to be used in the admin.
+	 * Extends the allowed post tags with input, select and option tags.
 	 *
-	 * WordPress 4.7 introduced the ability for users to specify an Admin language
-	 * different from the language used on the front end. This checks if the feature
-	 * is available and returns the user's language, with a fallback to the site's language.
-	 * Can be removed when support for WordPress 4.6 will be dropped, in favor
-	 * of WordPress get_user_locale() that already fallbacks to the site's locale.
-	 *
-	 * @see WPSEO_Language_Utils::get_user_locale()
-	 *
-	 * @deprecated 9.5
+	 * @param array $allowed_post_tags The allowed post tags.
 	 * @codeCoverageIgnore
 	 *
-	 * @return string The locale.
+	 * @return array The allowed tags including post tags, input tags, select tags and option tags.
 	 */
-	public static function get_user_locale() {
-		_deprecated_function( __METHOD__, 'WPSEO 9.5', 'WPSEO_Language_Utils::get_user_locale' );
+	public static function extend_kses_post_with_forms( $allowed_post_tags ) {
+		static $input_tags;
 
-		return WPSEO_Language_Utils::get_user_locale();
+		if ( isset( $input_tags ) === false ) {
+			$input_tags = [
+				'input' => [
+					'accept'          => true,
+					'accesskey'       => true,
+					'align'           => true,
+					'alt'             => true,
+					'autocomplete'    => true,
+					'autofocus'       => true,
+					'checked'         => true,
+					'contenteditable' => true,
+					'dirname'         => true,
+					'disabled'        => true,
+					'draggable'       => true,
+					'dropzone'        => true,
+					'form'            => true,
+					'formaction'      => true,
+					'formenctype'     => true,
+					'formmethod'      => true,
+					'formnovalidate'  => true,
+					'formtarget'      => true,
+					'height'          => true,
+					'hidden'          => true,
+					'lang'            => true,
+					'list'            => true,
+					'max'             => true,
+					'maxlength'       => true,
+					'min'             => true,
+					'multiple'        => true,
+					'name'            => true,
+					'pattern'         => true,
+					'placeholder'     => true,
+					'readonly'        => true,
+					'required'        => true,
+					'size'            => true,
+					'spellcheck'      => true,
+					'src'             => true,
+					'step'            => true,
+					'tabindex'        => true,
+					'translate'       => true,
+					'type'            => true,
+					'value'           => true,
+					'width'           => true,
+
+					/*
+					 * Below are attributes that are needed for backwards compatibility (WP < 5.1).
+					 * They are used for the social media image in the metabox.
+					 * These can be removed once we move to the React versions of the social previews.
+					 */
+					'data-target'     => true,
+					'data-target-id'  => true,
+				],
+				'select' => [
+					'accesskey'       => true,
+					'autofocus'       => true,
+					'contenteditable' => true,
+					'disabled'        => true,
+					'draggable'       => true,
+					'dropzone'        => true,
+					'form'            => true,
+					'hidden'          => true,
+					'lang'            => true,
+					'multiple'        => true,
+					'name'            => true,
+					'onblur'          => true,
+					'onchange'        => true,
+					'oncontextmenu'   => true,
+					'onfocus'         => true,
+					'oninput'         => true,
+					'oninvalid'       => true,
+					'onreset'         => true,
+					'onsearch'        => true,
+					'onselect'        => true,
+					'onsubmit'        => true,
+					'required'        => true,
+					'size'            => true,
+					'spellcheck'      => true,
+					'tabindex'        => true,
+					'translate'       => true,
+				],
+				'option' => [
+					'class'    => true,
+					'disabled' => true,
+					'id'       => true,
+					'label'    => true,
+					'selected' => true,
+					'value'    => true,
+				],
+			];
+
+			// Add the global allowed attributes to each html element.
+			$input_tags = array_map( '_wp_add_global_attributes', $input_tags );
+		}
+
+		return array_merge_recursive( $allowed_post_tags, $input_tags );
 	}
 
 	/**
@@ -1262,7 +1410,7 @@ SVG;
 	 * @return string[] The array of enabled features.
 	 */
 	public static function retrieve_enabled_features() {
-		$enabled_features = array();
+		$enabled_features = [];
 		if ( defined( 'YOAST_SEO_ENABLED_FEATURES' ) ) {
 			$enabled_features = preg_split( '/,\W*/', YOAST_SEO_ENABLED_FEATURES );
 		}

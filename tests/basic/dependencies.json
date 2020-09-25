@@ -3,6 +3,10 @@
     "plugins": {
       "current": {
         "dependencies": {
+          "my-calendar": {
+            "constraint": "3.2.8",
+            "source": "wordpress-plugin"
+          },
           "wordpress-seo": {
             "constraint": "6.3",
             "source": "wordpress-plugin"
@@ -12,7 +16,7 @@
       "updated": {
         "dependencies": {
           "wordpress-seo": {
-            "constraint": "11.5",
+            "constraint": "14.9",
             "source": "wordpress-plugin"
           }
         }

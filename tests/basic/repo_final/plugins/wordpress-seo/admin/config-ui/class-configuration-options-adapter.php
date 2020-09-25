@@ -15,16 +15,22 @@
 class WPSEO_Configuration_Options_Adapter {
 
 	/**
+	 * Holds the option type value that indicates: WordPress.
+	 *
 	 * @var string
 	 */
 	const OPTION_TYPE_WORDPRESS = 'wordpress';
 
 	/**
+	 * Holds the option type value that indicates: Yoast.
+	 *
 	 * @var string
 	 */
 	const OPTION_TYPE_YOAST = 'yoast';
 
 	/**
+	 * Holds the option type value that indicates: Custom.
+	 *
 	 * @var string
 	 */
 	const OPTION_TYPE_CUSTOM = 'custom';
@@ -34,7 +40,7 @@ class WPSEO_Configuration_Options_Adapter {
 	 *
 	 * @var array
 	 */
-	protected $lookup = array();
+	protected $lookup = [];
 
 	/**
 	 * Add a lookup for a WordPress native option.
@@ -90,7 +96,7 @@ class WPSEO_Configuration_Options_Adapter {
 		$this->add_lookup(
 			$class_name,
 			self::OPTION_TYPE_CUSTOM,
-			array( $callback_get, $callback_set )
+			[ $callback_get, $callback_set ]
 		);
 	}
 
@@ -104,10 +110,10 @@ class WPSEO_Configuration_Options_Adapter {
 	 * @throws Exception Thrown when invalid input is provided.
 	 */
 	protected function add_lookup( $class_name, $type, $option ) {
-		$this->lookup[ $class_name ] = array(
+		$this->lookup[ $class_name ] = [
 			'type'   => $type,
 			'option' => $option,
-		);
+		];
 	}
 
 	/**
@@ -195,24 +201,5 @@ class WPSEO_Configuration_Options_Adapter {
 		}
 
 		return $this->lookup[ $class_name ]['option'];
-	}
-
-	/* ********************* DEPRECATED METHODS ********************* */
-
-	/**
-	 * Add a lookup for a Yoast option.
-	 *
-	 * @deprecated 7.0
-	 * @codeCoverageIgnore
-	 *
-	 * @param string $class_name Class to bind to the lookup.
-	 * @param string $option     Option group to use.
-	 * @param string $key        Key in the option group to bind to.
-	 *
-	 * @throws InvalidArgumentException Thrown when invalid input is provided.
-	 */
-	public function add_yoast_lookup( $class_name, $option, $key ) {
-		_deprecated_function( __METHOD__, 'WPSEO 7.0', 'WPSEO_Configuration_Options_Adapter::add_option_lookup' );
-		$this->add_option_lookup( $class_name, $key );
 	}
 }

@@ -15,7 +15,7 @@ class WPSEO_Post_Indexable extends WPSEO_Indexable {
 	 *
 	 * @var array
 	 */
-	protected $updateable_fields = array(
+	protected $updateable_fields = [
 		'canonical',
 		'title',
 		'description',
@@ -36,7 +36,7 @@ class WPSEO_Post_Indexable extends WPSEO_Indexable {
 		'primary_focus_keyword_score',
 		'readability_score',
 		'is_cornerstone',
-	);
+	];
 
 	/**
 	 * Creates a new Indexable from a passed object.
@@ -50,13 +50,10 @@ class WPSEO_Post_Indexable extends WPSEO_Indexable {
 	public static function from_object( $object_id ) {
 		$post = WPSEO_Post_Object_Type::from_object( $object_id );
 
-		$link_count = new WPSEO_Link_Column_Count();
-		$link_count->set( array( $object_id ) );
-
 		$post_object_id = $post->get_id();
 
 		return new self(
-			array(
+			[
 				'object_id'                   => $post_object_id,
 				'object_type'                 => $post->get_type(),
 				'object_subtype'              => $post->get_subtype(),
@@ -80,11 +77,9 @@ class WPSEO_Post_Indexable extends WPSEO_Indexable {
 				'primary_focus_keyword_score' => (int) WPSEO_Meta::get_value( 'linkdex', $post_object_id ),
 				'readability_score'           => (int) WPSEO_Meta::get_value( 'content_score', $post_object_id ),
 				'is_cornerstone'              => WPSEO_Meta::get_value( 'is_cornerstone', $post_object_id ) === '1',
-				'link_count'                  => (int) $link_count->get( $post_object_id ),
-				'incoming_link_count'         => (int) $link_count->get( $post_object_id, 'incoming_link_count' ),
 				'created_at'                  => null,
 				'updated_at'                  => null,
-			)
+			]
 		);
 	}
 

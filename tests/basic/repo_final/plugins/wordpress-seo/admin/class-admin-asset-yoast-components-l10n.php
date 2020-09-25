@@ -1,5 +1,7 @@
 <?php
 /**
+ * WPSEO plugin file.
+ *
  * @package WPSEO\Admin
  */
 
@@ -16,10 +18,10 @@ final class WPSEO_Admin_Asset_Yoast_Components_L10n {
 	 * @return void
 	 */
 	public function localize_script( $script_handle ) {
-		$translations = array(
+		$translations = [
 			'yoast-components' => $this->get_translations( 'yoast-components' ),
 			'wordpress-seo'    => $this->get_translations( 'wordpress-seojs' ),
-		);
+		];
 		wp_localize_script( $script_handle, 'wpseoYoastJSL10n', $translations );
 	}
 
@@ -34,6 +36,7 @@ final class WPSEO_Admin_Asset_Yoast_Components_L10n {
 
 		$file = plugin_dir_path( WPSEO_FILE ) . 'languages/' . $component . '-' . $locale . '.json';
 		if ( file_exists( $file ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Retrieving a local file.
 			$file = file_get_contents( $file );
 			if ( is_string( $file ) && $file !== '' ) {
 				return json_decode( $file, true );
