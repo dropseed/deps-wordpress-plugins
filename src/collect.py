@@ -11,6 +11,13 @@ import requests
 def get_plugin_version(plugin_path):
     # look in all root php files for the "Version: x" to detect installed version
     plugin_root_files = os.listdir(plugin_path)
+
+    # reorder the files so that {plugin}.php will be looked at first
+    main_plugin_file = os.path.basename(plugin_path) + ".php"
+    if main_plugin_file in plugin_root_files:
+        plugin_root_files.remove(main_plugin_file)
+        plugin_root_files = [main_plugin_file] + plugin_root_files
+
     plugin_root_paths = [os.path.join(plugin_path, x) for x in plugin_root_files]
     plugin_root_file_paths = [x for x in plugin_root_paths if not os.path.isdir(x) and x[-4:] == '.php']
 
